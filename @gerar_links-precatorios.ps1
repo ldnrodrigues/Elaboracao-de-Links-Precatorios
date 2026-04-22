@@ -16,63 +16,41 @@ if (-Not (Test-Path $input_folder)) {
     Exit
 }
 
-"<ul>" | Out-File -FilePath $output_file -Encoding UTF8
-
 function Remove-Acentos {
-    param($string)
+    param([string]$string)
+
+    if (-not $string) { return $string }
+
+    $string = $string -replace '(?i)n[º°]\.?', 'no'
+
+    $string = $string -replace '[º°]', 'o'
+    $string = $string -replace 'ª', 'a'
+
     $string = $string.Normalize([System.Text.NormalizationForm]::FormD)
-    $string = $string -replace '\p{M}', ''
+    $string = [System.Text.RegularExpressions.Regex]::Replace($string, '\p{M}', '')
+
     return $string
 }
 
-function Convert-ToPascalCase {
-    param($string)
-    
-    $excludedWords = @('das', 'da', 'dos', 'do', 'de')
-    
-    $words = $string -split '-'
-    
-    for ($i = 0; $i -lt $words.Length; $i++) {
-        $word = $words[$i].ToLower()
-        
-        if ($i -eq 0 -or -not ($excludedWords -contains $word)) {
-            $words[$i] = [regex]::Replace(
-                $word,
-                '^([a-z])',
-                { param($match) $match.Groups[1].Value.ToUpper() }
-            )
-        } else {
-            $words[$i] = $word
-        }
-    }
-    
-    return $words -join '-'
-}
-
+# Processamento dos PDFs
 Get-ChildItem -Path $input_folder -Filter "*.pdf" | ForEach-Object {
     $file_name = $_.Name
-    $base_name = $_.BaseName
-    
-    $clean_file_name = Remove-Acentos -string $file_name
-    
-    $clean_file_name = $clean_file_name -replace '\s+', '-'
-    
-    $clean_file_name = $clean_file_name -replace '[^a-zA-Z0-9\.\-]', ''
-    
-    $clean_file_name = $clean_file_name -replace '-+', '-'
 
+    # centraliza limpeza na função
+    $clean_file_name = Remove-Acentos -string $file_name
+
+    # substituições finais para URL/slug
+    $clean_file_name = $clean_file_name -replace '\s+', '-'
+    $clean_file_name = $clean_file_name -replace '[^a-zA-Z0-9\.\-_]', ''
+    $clean_file_name = $clean_file_name -replace '-+', '-'
     $clean_file_name = $clean_file_name.Trim('-')
 
-    $clean_file_name = Convert-ToPascalCase -string $clean_file_name
+    $html_line = "https://www.tjrs.jus.br/static/$year/$month/$clean_file_name"
 
-    $html_line = "<li><a href='//www.tjrs.jus.br/static/$year/$month/$clean_file_name'>$base_name</a></li>"
-    
     $html_line | Out-File -FilePath $output_file -Append -Encoding UTF8
 
     Write-Host "Processando arquivo: $file_name -> $clean_file_name"
 }
-
-"</ul>" | Out-File -FilePath $output_file -Append -Encoding UTF8
 
 Write-Host "Arquivo HTML gerado em: $output_file" -ForegroundColor Green
 Pause
